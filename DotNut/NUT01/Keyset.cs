@@ -20,7 +20,7 @@ public class Keyset : Dictionary<ulong, PubKey>
             .Select(pair => pair.Value.Key.ToBytes())
             .SelectMany(b => b)
             .ToArray();
-        
+
         using SHA256 sha256 = SHA256.Create();
 
 
@@ -32,7 +32,8 @@ public class Keyset : Dictionary<ulong, PubKey>
             case 0x00:
             {
                 var hash = sha256.ComputeHash(sortedBytes);
-                return new KeysetId(Convert.ToHexString(new []{version}) + Convert.ToHexString(hash).Substring(0, 14).ToLower());
+                return new KeysetId(Convert.ToHexString(new[] { version }) +
+                                    Convert.ToHexString(hash).Substring(0, 14).ToLower());
             }
             // 3 - add the lowercase unit string to the byte array (e.g. "unit:sat")
             // 4 - If a final expiration is specified, convert it into a radix-10 string and add it (e.g "final_expiry:1896187313")
@@ -41,11 +42,14 @@ public class Keyset : Dictionary<ulong, PubKey>
             case 0x01:
             {
                 if (String.IsNullOrWhiteSpace(unit))
-                { 
-                    throw new ArgumentNullException( nameof(unit), $"Unit parameter is required with version: {version}");
+                {
+                    throw new ArgumentNullException(nameof(unit),
+                        $"Unit parameter is required with version: {version}");
                 }
-                sortedBytes = sortedBytes.Concat(Encoding.UTF8.GetBytes($"unit:{unit.Trim().ToLowerInvariant()}")).ToArray();
-                
+
+                sortedBytes = sortedBytes.Concat(Encoding.UTF8.GetBytes($"unit:{unit.Trim().ToLowerInvariant()}"))
+                    .ToArray();
+
                 if (!string.IsNullOrWhiteSpace(finalExpiration))
                 {
                     sortedBytes = sortedBytes.Concat(Encoding.UTF8.GetBytes($"final_expiry:{finalExpiration.Trim()}"))
@@ -59,16 +63,28 @@ public class Keyset : Dictionary<ulong, PubKey>
             default:
                 throw new ArgumentException($"Unsupported keyset version: {version}");
         }
-        
+
     }
 
-public bool VerifyKeysetId(KeysetId keysetId, string? unit = null, string? finalExpiration = null)
-{
-    byte version = keysetId.GetVersion();
-    var derived = GetKeysetId(version, unit, finalExpiration).ToString();
-    var presented = keysetId.ToString();
-    if (presented.Length > derived.Length) return false;
-    return string.Equals(derived, presented, StringComparison.Ordinal) ||
-           derived.StartsWith(presented, StringComparison.Ordinal);
+    public bool VerifyKeysetId(KeysetId keysetId, string? unit = null, string? finalExpiration = null)
+    {
+        byte version = keysetId.GetVersion();
+        var derived = GetKeysetId(version, unit, finalExpiration).ToString();
+        var presented = keysetId.ToString();
+        if (presented.Length > derived.Length) return false;
+        return string.Equals(derived, presented, StringComparison.Ordinal) ||
+               derived.StartsWith(presented, StringComparison.Ordinal);
+    }
+
+    public bool VerifyKeysetId(KeysetId keysetId, string? unit = null, ulong? finalExpiration = null)
+    {
+        if (finalExpiration is not null)
+        {
+            return VerifyKeysetId(keysetId, unit, $"final_expiry:{finalExpiration}");
+
+        }
+
+        return VerifyKeysetId(keysetId, unit, (string)null);
+    }
 }
-}
+
