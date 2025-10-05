@@ -78,13 +78,8 @@ public class Keyset : Dictionary<ulong, PubKey>
 
     public bool VerifyKeysetId(KeysetId keysetId, string? unit = null, ulong? finalExpiration = null)
     {
-        if (finalExpiration is not null)
-        {
-            return VerifyKeysetId(keysetId, unit, $"final_expiry:{finalExpiration}");
-
-        }
-
-        return VerifyKeysetId(keysetId, unit, (string)null);
+        var finalExpiryStr = finalExpiration is not null ? $"final_expiry:{finalExpiration}" : null;
+        return VerifyKeysetId(keysetId, unit, finalExpiryStr);
     }
 }
 
