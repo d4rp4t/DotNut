@@ -1,6 +1,7 @@
 ﻿using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
+using DotNut.Abstractions;
 using DotNut.NBitcoin.BIP39;
 using NBip32Fast;
 
