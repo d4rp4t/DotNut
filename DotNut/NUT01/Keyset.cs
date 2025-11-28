@@ -72,13 +72,13 @@ public class Keyset : Dictionary<ulong, PubKey>
         var derived = GetKeysetId(version, unit, finalExpiration).ToString();
         var presented = keysetId.ToString();
         if (presented.Length > derived.Length) return false;
-        return string.Equals(derived, presented, StringComparison.Ordinal) ||
-               derived.StartsWith(presented, StringComparison.Ordinal);
+        return string.Equals(derived, presented, StringComparison.InvariantCultureIgnoreCase) ||
+               derived.StartsWith(presented, StringComparison.InvariantCultureIgnoreCase);
     }
 
     public bool VerifyKeysetId(KeysetId keysetId, string? unit = null, ulong? finalExpiration = null)
     {
-        var finalExpiryStr = finalExpiration is not null ? $"final_expiry:{finalExpiration}" : null;
+        var finalExpiryStr = finalExpiration?.ToString();
         return VerifyKeysetId(keysetId, unit, finalExpiryStr);
     }
 }
