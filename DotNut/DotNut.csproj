@@ -26,4 +26,7 @@
   <ItemGroup>
     <ProjectReference Include="..\DotNut.BLS12-381\DotNut.BLS12-381\DotNut.BLS12-381.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="JsonConverters\BLSPubKeyJsonConverter.cs" />
+  </ItemGroup>
 </Project>
