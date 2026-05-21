@@ -10,6 +10,7 @@ public class MintHandlerOnchain(IWalletBuilder wallet,
     ): IMintHandler<PostMintQuoteOnchainResponse, List<Proof>>
 {
     private string? _signature;
+    private List<OutputData> _outputs = outputs;
     
     public IMintHandler<PostMintQuoteOnchainResponse, List<Proof>> WithSignature(string signature)
     {
@@ -21,7 +22,7 @@ public class MintHandlerOnchain(IWalletBuilder wallet,
     {
         this._signature = privkey.SignMintQuote(
             quote.Quote,
-            outputs.Select(o => o.BlindedMessage).ToList()
+            _outputs.Select(o => o.BlindedMessage).ToList()
         );
         return this;
     }
@@ -31,11 +32,20 @@ public class MintHandlerOnchain(IWalletBuilder wallet,
         return this.SignWithPrivkey(new PrivKey(privKeyHex));
     }
 
+    public IMintHandler<PostMintQuoteOnchainResponse, List<Proof>> WithOutputs(IEnumerable<OutputData> newOutputs)
+    {
+        _outputs = newOutputs as List<OutputData> ?? newOutputs.ToList();
+        return this;
+    }
+
     public PostMintQuoteOnchainResponse GetQuote() => quote;
 
     // onchain takes quite some time
     public async Task<List<Proof>> Mint(CancellationToken ct = default)
     {
+        if (_outputs.Count == 0)
+            throw new ArgumentException("Outputs are empty. Call WithOutputs() with the mintable amount before minting.");
+
         if (this._signature is null)
         {
             throw new ArgumentNullException(
@@ -47,7 +57,7 @@ public class MintHandlerOnchain(IWalletBuilder wallet,
         var client = await wallet.GetMintApi(ct);
         var req = new PostMintRequest
         {
-            Outputs = outputs.Select(o => o.BlindedMessage).ToArray(),
+            Outputs = _outputs.Select(o => o.BlindedMessage).ToArray(),
             Quote = quote.Quote,
             Signature = _signature,
         };
@@ -55,11 +65,11 @@ public class MintHandlerOnchain(IWalletBuilder wallet,
         
         return Utils.ConstructProofsFromPromises(
             promises.Signatures.ToList(),
-            outputs,
+            _outputs,
             keyset.Keys
         );
 
     }
 
-    public List<OutputData> GetOutputs() => outputs;
+    public List<OutputData> GetOutputs() => _outputs;
 }

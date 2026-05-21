@@ -11,6 +11,7 @@ public class MintHandlerBolt12(
 ) : IMintHandler<PostMintQuoteBolt12Response, List<Proof>>
 {
     private string? _signature;
+    private List<OutputData> _outputs = outputs;
 
     public IMintHandler<PostMintQuoteBolt12Response, List<Proof>> WithSignature(string signature)
     {
@@ -27,17 +28,26 @@ public class MintHandlerBolt12(
     {
         this._signature = privkey.SignMintQuote(
             quote.Quote,
-            outputs.Select(o => o.BlindedMessage).ToList()
+            _outputs.Select(o => o.BlindedMessage).ToList()
         );
+        return this;
+    }
+
+    public IMintHandler<PostMintQuoteBolt12Response, List<Proof>> WithOutputs(IEnumerable<OutputData> newOutputs)
+    {
+        _outputs = newOutputs as List<OutputData> ?? newOutputs.ToList();
         return this;
     }
 
     public PostMintQuoteBolt12Response GetQuote() => quote;
 
-    public List<OutputData> GetOutputs() => outputs;
+    public List<OutputData> GetOutputs() => _outputs;
 
     public async Task<List<Proof>> Mint(CancellationToken ct = default)
     {
+        if (_outputs.Count == 0)
+            throw new ArgumentException("Outputs are empty. Call WithOutputs() with the current mintable amount before minting.");
+
         if (this._signature is null)
         {
             throw new ArgumentNullException(
@@ -49,7 +59,7 @@ public class MintHandlerBolt12(
         var client = await wallet.GetMintApi(ct);
         var req = new PostMintRequest
         {
-            Outputs = outputs.Select(o => o.BlindedMessage).ToArray(),
+            Outputs = _outputs.Select(o => o.BlindedMessage).ToArray(),
             Quote = quote.Quote,
             Signature = _signature,
         };
@@ -57,7 +67,7 @@ public class MintHandlerBolt12(
         var promises = await client.Mint<PostMintRequest, PostMintResponse>("bolt12", req, ct);
         return Utils.ConstructProofsFromPromises(
             promises.Signatures.ToList(),
-            outputs,
+            _outputs,
             keyset.Keys
         );
     }
