@@ -172,19 +172,37 @@ public class Nut13Tests
     [Fact]
     public void Nut13P2PkTests()
     {
-        var mnemonic = new Mnemonic("half depart obvious quality work element tank gorilla view sugar picture humble");
+        // Test vectors from tests/13-tests.md, "P2PK Derivation" (m/129373'/10'/0'/0'/{counter})
+        var mnemonic = new Mnemonic(
+            "half depart obvious quality work element tank gorilla view sugar picture humble"
+        );
         string[] keys =
         [
-            "03381fbf0996b81d49c35bae17a70d71db9a9e802b1af5c2516fc90381f4741e06",
-            "039bbb7a9cd234da13a113cdd8e037a25c66bbf3a77139d652786a1d7e9d73e600",
-            "02ffd52ed54761750d75b67342544cc8da8a0994f84c46d546e0ab574dd3651a29",
-            "02751ab780960ff177c2300e440fddc0850238a78782a1cab7b0ae03c41978d92d",
-            "0391a9ba1c3caf39ca0536d44419a6ceeda922ee61aa651a72a60171499c02b423"
+            "021693d45f4fdf610ae641fedb0944fb460fbb8264f21c19d2626c3da755fcbbcb",
+            "0395461ab678058c0ed6aa39f38dda490eaa163e9ad27070b23ec3d06b41e07535",
+            "02a05e4e593a633e9b4405f01c9632c8afde24cb613017a1aee56fd76291ad26d1",
+            "033addea25c3873b93d67d536c61c9d9c993f6efd8b9dfa657951b66b5001e51dd",
+            "03c964bdf42fc82b6c574615746eeca37527a24f1fdfc1b34a732c53843b5744a5",
         ];
-        for(var i = 0UL; i < (ulong)keys.Length; i++)
+        for (var i = 0u; i < (uint)keys.Length; i++)
         {
             var privkey = mnemonic.DeriveP2PkPrivkey(i);
             Assert.Equal(new PubKey(keys[i]), (PubKey)privkey.Key.CreatePubKey());
         }
+    }
+
+    [Fact]
+    public void Nut13P2PkRejectsHardenedCounter()
+    {
+        var mnemonic = new Mnemonic(
+            "half depart obvious quality work element tank gorilla view sugar picture humble"
+        );
+
+        // The last child index is non-hardened, so 2^31 - 1 is the largest valid counter.
+        // Without the guard 2^31 silently derives the hardened index 0 instead.
+        Assert.NotNull(mnemonic.DeriveP2PkPrivkey(int.MaxValue));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            mnemonic.DeriveP2PkPrivkey((uint)int.MaxValue + 1)
+        );
     }
 }
