@@ -3,6 +3,8 @@ using DotNut.Abstractions;
 using DotNut.Abstractions.Websockets;
 using DotNut.Api;
 using DotNut.ApiModels;
+using DotNut.NBitcoin.BIP39;
+using DotNut.NUT13;
 
 namespace DotNut.Tests;
 
@@ -428,6 +430,42 @@ public class Integration
             .Swap()
             .FromInputs(proofs)
             .WithPrivkeys([privKeyBob])
+            .ProcessAsync();
+
+        Assert.NotEmpty(swappedProofs);
+    }
+
+    [Fact]
+    public async Task SwapDeterministicP2Pk()
+    {
+        // Shares the counter with the other deterministic tests, otherwise restarting it from
+        // zero would re-derive secrets they already minted with this seed.
+        var wallet = Wallet.Create().WithMint(MintUrl).WithMnemonic(seed).WithCounter(counter);
+
+        var derivationCounter = wallet.GetDerivationCounter()!;
+        var before = await derivationCounter.GetCounter(DerivationPurpose.P2Pk);
+
+        var mintHandler = await wallet
+            .CreateMintQuote()
+            .WithAmount(1337)
+            .WithDeterministicP2PkLock()
+            .ProcessAsyncBolt11();
+
+        await PayInvoice();
+        var proofs = await mintHandler.Mint();
+
+        // The lock key is the one at the counter we started from, and it moved past it.
+        var derived = new Mnemonic(seed).DeriveP2PkPrivkey(before);
+        Assert.Equal(before + 1, await derivationCounter.GetCounter(DerivationPurpose.P2Pk));
+
+        await Assert.ThrowsAsync<CashuProtocolException>(async () =>
+            await wallet.Swap().FromInputs(proofs).ProcessAsync()
+        );
+
+        var swappedProofs = await wallet
+            .Swap()
+            .FromInputs(proofs)
+            .WithPrivkeys([derived])
             .ProcessAsync();
 
         Assert.NotEmpty(swappedProofs);
