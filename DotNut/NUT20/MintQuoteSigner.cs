@@ -14,12 +14,6 @@ public static class MintQuoteSigner
     /// </summary>
     private static ReadOnlySpan<byte> DomainSeparator => "Cashu_MintQuoteSig_v1"u8;
 
-    /// <summary>
-    /// "Signature for mint request invalid", the error a mint returns when it rejects the
-    /// quote signature.
-    /// </summary>
-    internal const int InvalidSignatureErrorCode = 20008;
-
     public static string SignMintQuote(
         this PrivKey pk,
         string quote,

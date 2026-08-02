@@ -62,7 +62,7 @@ public class MintHandlerBolt11(
             promises = await client.Mint<PostMintRequest, PostMintResponse>("bolt11", req, ct);
         }
         catch (CashuProtocolException e)
-            when (e.Error.Code == MintQuoteSigner.InvalidSignatureErrorCode
+            when (e.Error.Code == CashuErrorCodes.MintRequestSignatureInvalid
                 && _signingKey is not null
             )
         {
