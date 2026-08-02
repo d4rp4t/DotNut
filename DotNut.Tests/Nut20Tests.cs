@@ -107,6 +107,40 @@ public class Nut20Tests
         Assert.True(parsed.VerifySignature(new PubKey(QuotePubkey)));
     }
 
+    [Fact]
+    public void LegacySignatureIsAcceptedUnlessRefused()
+    {
+        var privkey = new PrivKey(
+            "0000000000000000000000000000000000000000000000000000000000000001"
+        );
+        var parsed = JsonSerializer.Deserialize<PostMintRequest>(SignedMintQuote);
+        Assert.NotNull(parsed);
+
+        parsed.Signature = privkey.SignMintQuoteLegacy(parsed.Quote, parsed.Outputs.ToList());
+
+        // Mints that understand the current message still accept the superseded one, the way
+        // cdk and nutshell do, but a caller can insist on the current format.
+        Assert.True(parsed.VerifySignature(new PubKey(QuotePubkey)));
+        Assert.False(parsed.VerifySignature(new PubKey(QuotePubkey), allowLegacy: false));
+    }
+
+    [Fact]
+    public void LegacyMessageIsTheSupersededFormat()
+    {
+        var parsed = JsonSerializer.Deserialize<PostMintRequest>(SignedMintQuote);
+        Assert.NotNull(parsed);
+
+        var msg = MintQuoteSigner.GetLegacyMessageToSign(parsed.Quote, parsed.Outputs);
+
+        // Quote id and the hex of every output, concatenated as UTF-8. No domain tag, no lengths.
+        Assert.Equal(
+            "0192d3c0-7e8a-7c3d-8e9f-1a2b3c4d5e6f"
+                + "036d6caac248af96f6afa7f904f550253a0f3ef3f5aa2fe6838a95b216691468e2"
+                + "021f8a566c205633d029094747d2e18f44e05993dda7a5f88f496078205f656e59",
+            System.Text.Encoding.UTF8.GetString(msg)
+        );
+    }
+
     [Theory]
     // Canonical minimal big-endian: zero is empty, no leading zero bytes.
     [InlineData(0UL, "")]

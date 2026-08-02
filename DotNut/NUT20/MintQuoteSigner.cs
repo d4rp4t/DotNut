@@ -14,6 +14,12 @@ public static class MintQuoteSigner
     /// </summary>
     private static ReadOnlySpan<byte> DomainSeparator => "Cashu_MintQuoteSig_v1"u8;
 
+    /// <summary>
+    /// "Signature for mint request invalid", the error a mint returns when it rejects the
+    /// quote signature.
+    /// </summary>
+    internal const int InvalidSignatureErrorCode = 20008;
+
     public static string SignMintQuote(
         this PrivKey pk,
         string quote,
@@ -47,6 +53,39 @@ public static class MintQuoteSigner
         return writer.WrittenSpan.ToArray();
     }
 
+    /// <summary>
+    /// Signs with the message format used before cashubtc/nuts@b969c4aa. Only for retrying
+    /// against mints that have not upgraded yet — mints that understand the current format
+    /// still accept this one, but not the other way round.
+    /// </summary>
+    public static string SignMintQuoteLegacy(
+        this PrivKey pk,
+        string quote,
+        List<BlindedMessage> blindedMessages
+    )
+    {
+        var msg = GetLegacyMessageToSign(quote, blindedMessages);
+        var hash = SHA256.HashData(msg);
+        return pk.Key.SignBIP340(hash).ToHex();
+    }
+
+    /// <summary>
+    /// The superseded message: the quote id and the hex of every output, concatenated as UTF-8.
+    /// </summary>
+    internal static byte[] GetLegacyMessageToSign(
+        string quote,
+        IEnumerable<BlindedMessage> messages
+    )
+    {
+        var sb = new StringBuilder();
+        sb.Append(quote);
+        foreach (var blindedMessage in messages)
+        {
+            sb.Append(blindedMessage.B_);
+        }
+        return Encoding.UTF8.GetBytes(sb.ToString());
+    }
+
     private static void WriteLengthPrefixed(IBufferWriter<byte> writer, ReadOnlySpan<byte> value)
     {
         var span = writer.GetSpan(4 + value.Length);
@@ -77,16 +116,28 @@ public static class MintQuoteSigner
         return buffer[start..].ToArray();
     }
 
-    public static bool VerifySignature(this PostMintRequest quote, PubKey pk)
+    /// <param name="allowLegacy">
+    /// Also accept a signature over the superseded message, the way cdk and nutshell do, so
+    /// that wallets which have not upgraded can still mint.
+    /// </param>
+    public static bool VerifySignature(this PostMintRequest quote, PubKey pk, bool allowLegacy = true)
     {
         ArgumentNullException.ThrowIfNull(quote.Signature, nameof(quote.Signature));
-        var msg = GetMessageToSign(quote.Quote, quote.Outputs);
-        var hash = SHA256.HashData(msg);
-        var xonly = pk.Key.ToXOnlyPubKey();
         if (!SecpSchnorrSignature.TryCreate(Convert.FromHexString(quote.Signature), out var sig))
         {
             return false;
         }
-        return xonly.SigVerifyBIP340(sig, hash);
+
+        var xonly = pk.Key.ToXOnlyPubKey();
+        if (xonly.SigVerifyBIP340(sig, SHA256.HashData(GetMessageToSign(quote.Quote, quote.Outputs))))
+        {
+            return true;
+        }
+
+        return allowLegacy
+            && xonly.SigVerifyBIP340(
+                sig,
+                SHA256.HashData(GetLegacyMessageToSign(quote.Quote, quote.Outputs))
+            );
     }
 }
