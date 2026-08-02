@@ -20,6 +20,10 @@ class MintQuoteBuilder : IMintQuoteBuilder
 
     private string? _pubkey;
 
+    //for nut20
+    private bool _deterministicQuoteKey = false;
+    private PrivKey? _quoteKey;
+
     private KeysetId? _keysetId;
     private GetKeysResponse.KeysetItemResponse? _keyset;
 
@@ -54,6 +58,12 @@ class MintQuoteBuilder : IMintQuoteBuilder
     public IMintQuoteBuilder WithPubkey(PubKey pubkey)
     {
         this._pubkey = pubkey.ToString();
+        return this;
+    }
+
+    public IMintQuoteBuilder WithDeterministicPubkey()
+    {
+        this._deterministicQuoteKey = true;
         return this;
     }
 
@@ -125,6 +135,11 @@ class MintQuoteBuilder : IMintQuoteBuilder
             );
         }
 
+        if (this._deterministicQuoteKey)
+        {
+            await _applyDeterministicQuoteKey(ct);
+        }
+
         var api = await this._wallet.GetMintApi(ct);
         if (api is null)
         {
@@ -155,7 +170,13 @@ class MintQuoteBuilder : IMintQuoteBuilder
             PostMintQuoteBolt11Response,
             PostMintQuoteBolt11Request
         >("bolt11", reqBolt11, ct);
-        return new MintHandlerBolt11(this._wallet, quoteBolt11, this._keyset, outputs);
+        return new MintHandlerBolt11(
+            this._wallet,
+            quoteBolt11,
+            this._keyset,
+            outputs,
+            this._quoteKey
+        );
     }
 
     public async Task<IMintHandler<PostMintQuoteBolt12Response, List<Proof>>> ProcessAsyncBolt12(
@@ -171,6 +192,11 @@ class MintQuoteBuilder : IMintQuoteBuilder
                 nameof(ICashuApi),
                 "Can't request mint quote without mint API"
             );
+        }
+
+        if (this._deterministicQuoteKey)
+        {
+            await _applyDeterministicQuoteKey(ct);
         }
 
         if (this._pubkey == null)
@@ -212,7 +238,13 @@ class MintQuoteBuilder : IMintQuoteBuilder
             PostMintQuoteBolt12Response,
             PostMintQuoteBolt12Request
         >("bolt12", req, ct);
-        return new MintHandlerBolt12(this._wallet, mintQuote, this._keyset, outputs);
+        return new MintHandlerBolt12(
+            this._wallet,
+            mintQuote,
+            this._keyset,
+            outputs,
+            this._quoteKey
+        );
     }
 
     /// <summary>
@@ -239,6 +271,32 @@ class MintQuoteBuilder : IMintQuoteBuilder
         var derived = mnemonic.DeriveP2PkPrivkey(current).Key.CreatePubKey();
 
         this._builder!.Pubkeys = [derived, .. this._builder.Pubkeys ?? []];
+    }
+
+    /// <summary>
+    /// Derives the NUT-20 quote locking key from the wallet seed and locks the quote to it.
+    /// Consumes one counter value, so this must happen exactly once per quote.
+    /// </summary>
+    async Task _applyDeterministicQuoteKey(CancellationToken ct)
+    {
+        var mnemonic =
+            this._wallet.GetMnemonic()
+            ?? throw new ArgumentNullException(
+                nameof(Mnemonic),
+                "Can't derive a quote lock without a mnemonic"
+            );
+
+        var counter =
+            this._wallet.GetDerivationCounter()
+            ?? throw new ArgumentNullException(
+                nameof(IDerivationCounter),
+                "Can't derive a quote lock without a counter implementing IDerivationCounter"
+            );
+
+        var (current, _) = await counter.FetchAndIncrement(DerivationPurpose.MintQuoteLock, 1, ct);
+
+        this._quoteKey = mnemonic.DeriveMintQuotePrivkey(current);
+        this._pubkey = ((PubKey)this._quoteKey.Key.CreatePubKey()).ToString();
     }
 
     // skipped checks for keysetid and keys, since its validated before. make sure to remember about it.

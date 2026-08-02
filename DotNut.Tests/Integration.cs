@@ -436,6 +436,37 @@ public class Integration
     }
 
     [Fact]
+    public async Task MintsBolt12WithDeterministicQuoteKey()
+    {
+        var wallet = Wallet.Create().WithMint(MintUrl).WithMnemonic(seed).WithCounter(counter);
+
+        var derivationCounter = wallet.GetDerivationCounter()!;
+        var before = await derivationCounter.GetCounter(DerivationPurpose.MintQuoteLock);
+
+        // No pubkey and no SignWithPrivkey — both come from the seed.
+        var mintQuote = await wallet
+            .CreateMintQuote()
+            .WithDeterministicPubkey()
+            .WithUnit("sat")
+            .WithAmount(1337)
+            .ProcessAsyncBolt12();
+
+        Assert.Equal(
+            new Mnemonic(seed).DeriveMintQuotePrivkey(before).Key.CreatePubKey().ToHex(),
+            mintQuote.GetQuote().Pubkey
+        );
+        Assert.Equal(
+            before + 1,
+            await derivationCounter.GetCounter(DerivationPurpose.MintQuoteLock)
+        );
+
+        await PayInvoice();
+        var proofs = await mintQuote.Mint();
+
+        Assert.Equal(1337UL, Utils.SumProofs(proofs));
+    }
+
+    [Fact]
     public async Task SwapDeterministicP2Pk()
     {
         // Shares the counter with the other deterministic tests, otherwise restarting it from

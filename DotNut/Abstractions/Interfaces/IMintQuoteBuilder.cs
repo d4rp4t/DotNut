@@ -43,6 +43,14 @@ public interface IMintQuoteBuilder
     /// <summary>
     /// Optional. Allows providing a P2PK builder when a signature is required for minting.
     /// </summary>
+    /// <summary>
+    /// Optional. Locks the quote to a key derived from the wallet seed at the next NUT-20
+    /// counter, instead of one supplied through <see cref="WithPubkey(PubKey)"/>. The quote is
+    /// then signed automatically when minting, and the key survives a restore. Requires a
+    /// mnemonic and a counter implementing <see cref="IDerivationCounter"/>.
+    /// </summary>
+    IMintQuoteBuilder WithDeterministicPubkey();
+
     IMintQuoteBuilder WithP2PkLock(P2PkBuilder p2pkBuilder);
 
     /// <summary>
