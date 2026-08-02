@@ -103,6 +103,26 @@ public class UnitTests2
     }
 
     [Fact]
+    public async Task InMemoryCounter_DerivationPurpose()
+    {
+        var ctr = new InMemoryCounter();
+
+        Assert.Equal((uint)0, await ctr.GetCounter(DerivationPurpose.P2Pk));
+
+        var (old, @new) = await ctr.FetchAndIncrement(DerivationPurpose.P2Pk, 3);
+        Assert.Equal((uint)0, old);
+        Assert.Equal((uint)3, @new);
+        Assert.Equal((uint)3, await ctr.GetCounter(DerivationPurpose.P2Pk));
+
+        await ctr.SetCounter(DerivationPurpose.P2Pk, 1337);
+        Assert.Equal((uint)1337, await ctr.GetCounter(DerivationPurpose.P2Pk));
+
+        // Each purpose is its own counter, and neither touches the keyset counters.
+        Assert.Equal((uint)0, await ctr.GetCounter(DerivationPurpose.MintQuoteLock));
+        Assert.Empty(await ctr.Export());
+    }
+
+    [Fact]
     public void SplitAmountsForPayment_ExactAmount_ReturnsCorrectSplit()
     {
         var amounts = Utils.SplitToProofsAmounts(30, _testKeyset);
