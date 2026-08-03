@@ -13,6 +13,10 @@ public class PostMeltQuoteOnchainResponse
     [JsonPropertyName("unit")]
     public string Unit { get; set; }
     
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("method")]
+    public string? Method { get; set; }
+
     [JsonPropertyName("state")]
     public string State { get; set; }
     
